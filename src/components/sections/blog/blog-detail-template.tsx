@@ -27,8 +27,12 @@ export interface BlogDetailTemplateProps {
  */
 export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
   const author = teamMembers.find((m) => m.id === post.authorId);
-  const relatedPosts = blogPosts.filter((p) => p.slug !== post.slug && p.category === post.category).slice(0, 3);
-  const relatedService = post.relatedServiceSlug ? servicesContent[post.relatedServiceSlug] : undefined;
+  const relatedPosts = blogPosts
+    .filter((p) => p.slug !== post.slug && p.category === post.category)
+    .slice(0, 3);
+  const relatedService = post.relatedServiceSlug
+    ? servicesContent[post.relatedServiceSlug]
+    : undefined;
 
   return (
     <>
@@ -47,17 +51,26 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
           <span className="rounded-pill bg-secondary/10 px-3 py-1 text-label uppercase text-secondary">
             {categoryLabels[post.category]}
           </span>
-          <h1 className="mt-4 text-h2-mobile font-heading text-primary md:text-h1">{post.title}</h1>
+          <h1 className="mt-4 font-heading text-h2-mobile text-primary md:text-h1">
+            {post.title}
+          </h1>
           <p className="mt-4 text-caption text-neutral-600">
-            {author?.name ?? "Alvora Team"} &middot; {formatDate(post.publishedAt)} &middot;{" "}
-            {post.readingTimeMinutes} min read
+            {author?.name ?? "Alvora Team"} &middot; {formatDate(post.publishedAt)}{" "}
+            &middot; {post.readingTimeMinutes} min read
           </p>
         </FadeUp>
       </div>
 
       <SectionWrapper>
         <div className="relative mx-auto aspect-[16/9] w-full max-w-3xl overflow-hidden rounded-card border border-border bg-neutral-100 shadow-elevated">
-          <Image src={post.heroImage} alt="" fill sizes="(min-width: 768px) 768px, 100vw" className="object-cover" priority />
+          <Image
+            src={post.heroImage}
+            alt=""
+            fill
+            sizes="(min-width: 768px) 768px, 100vw"
+            className="object-cover"
+            priority
+          />
         </div>
       </SectionWrapper>
 
@@ -79,7 +92,10 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
               <p className="font-heading text-h6 text-primary">{author.name}</p>
               <p className="text-body text-neutral-600">{author.role}</p>
             </div>
-            <Link href="/about#leadership" className="ml-auto shrink-0 text-button text-secondary transition-colors hover:text-secondary-light">
+            <Link
+              href="/about#leadership"
+              className="ml-auto shrink-0 text-button text-secondary transition-colors hover:text-secondary-light"
+            >
               About the Team →
             </Link>
           </div>
@@ -90,8 +106,12 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
         <SectionWrapper>
           <FadeUp className="hover-lift mx-auto max-w-3xl rounded-card border border-border bg-surface p-6 hover:border-secondary/30 hover:shadow-elevated-hover">
             <p className="text-body text-neutral-600">Related to this article</p>
-            <h2 className="mt-1 font-heading text-h5 text-primary">{relatedService.name}</h2>
-            <p className="mt-2 text-body text-neutral-600">{relatedService.shortDescription}</p>
+            <h2 className="mt-1 font-heading text-h5 text-primary">
+              {relatedService.name}
+            </h2>
+            <p className="mt-2 text-body text-neutral-600">
+              {relatedService.shortDescription}
+            </p>
             <Link
               href={`/services/${relatedService.slug}`}
               className="mt-4 inline-block text-button text-secondary"
@@ -105,7 +125,7 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
       {relatedPosts.length > 0 && (
         <SectionWrapper tint>
           <FadeUp>
-            <h2 className="text-h3 font-heading text-primary">Related Articles</h2>
+            <h2 className="font-heading text-h3 text-primary">Related Articles</h2>
           </FadeUp>
           <StaggerGrid className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
             {relatedPosts.map((related) => (
@@ -114,10 +134,13 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
                 title={related.title}
                 href={`/blog/${related.slug}`}
                 heroImage={related.heroImage}
-                categoryLabel={categoryLabels[related.category]}
+                categoryLabel={categoryLabels[related.category] ?? related.category}
                 publishedAt={related.publishedAt}
                 readingTimeMinutes={related.readingTimeMinutes}
-                authorName={teamMembers.find((m) => m.id === related.authorId)?.name ?? "Alvora Team"}
+                authorName={
+                  teamMembers.find((m) => m.id === related.authorId)?.name ??
+                  "Alvora Team"
+                }
               />
             ))}
           </StaggerGrid>
@@ -128,7 +151,11 @@ export function BlogDetailTemplate({ post }: BlogDetailTemplateProps) {
         title="Have a Project in Mind?"
         description="Tell us about your project — we'll respond within one business day."
         actions={
-          <Button asChild size="lg" className="bg-white text-primary-dark hover:bg-white/90">
+          <Button
+            asChild
+            size="lg"
+            className="bg-white text-primary-dark hover:bg-white/90"
+          >
             <Link href="/request-a-quote">Book a Free Consultation</Link>
           </Button>
         }
