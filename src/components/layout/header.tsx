@@ -43,8 +43,27 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
  * width/height props updated to match, so w-auto sizing is accurate
  * everywhere it appears (this file, Footer, AdminSidebar, admin login).
  *
- * Mobile scroll morph (continuous, not threshold-based) — below 768px:
+ * Mobile scroll morph — crossfade, not movement. Below 768px:
  *
+ *   - The full logo (public/images/logo.png — the exact same fused
+ *     icon+wordmark lockup used everywhere else on the site) never
+ *     moves or scales. It stays in its normal flex position and only
+ *     fades out (opacity 1→0) as the header compacts.
+ *   - The standalone icon (public/images/hero-mark.png, already used
+ *     elsewhere in this codebase) is a *separate* element, statically
+ *     centered the whole time (`left-1/2 -translate-x-1/2`, never
+ *     animated), which simultaneously fades in (opacity 0→1) over the
+ *     exact same progress range — a straight linear crossfade between
+ *     two untouched, original assets. Neither element's geometry
+ *     (position/size) is ever animated — only opacity — which is also
+ *     why there's no more `offsetLeft`-based measurement/centering
+ *     math in this file: the icon's center is a fixed CSS position,
+ *     not computed.
+ *   - Both are real `<Link href="/">`s to Home; `inert` (native HTML,
+ *     removes an element from both the a11y tree and hit-testing in
+ *     one step) is applied to whichever one is fully transparent at
+ *     the moment, so an invisible logo can never be focused or
+ *     clicked — no `pointer-events`/`aria-hidden` bookkeeping needed.
  *   - `progress` is a MotionValue from 0 (natural) to 1 (fully
  *     compact), driven by *scroll delta* rather than absolute scrollY:
  *     every scroll event nudges it by `Δy / 100`, clamped. This is
@@ -61,60 +80,32 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
  *     mass:0.8})` adds the "floating," never-snaps physical feel.
  *   - `effectiveProgress` is `smoothProgress` gated to 0 whenever the
  *     feature should be a no-op — desktop (`!isMobile`) or
- *     `prefers-reduced-motion`. Every visual MotionValue (logo x/scale,
- *     company-name opacity, hamburger opacity, glow, floating pill)
- *     derives from this ONE gated value, so mobile and desktop/reduced-
- *     motion can never fall out of sync with each other.
+ *     `prefers-reduced-motion`. Every visual MotionValue (full-logo/
+ *     icon opacity, hamburger opacity, glow, floating pill) derives
+ *     from this ONE gated value, so mobile and desktop/reduced-motion
+ *     can never fall out of sync with each other.
  *   - None of this touches React state per scroll pixel — `progress`
  *     and every derived value are plain MotionValues, updated outside
  *     React's render cycle. The only `setState` calls left are for
  *     the 24px shared border/shadow (existing, untouched, low-
- *     frequency) and a single boolean crossing a 0.92 threshold to
- *     make the fully-faded hamburger non-interactive.
+ *     frequency) and three booleans crossing a threshold once each,
+ *     to flip `inert`.
  *
- * Company name split: independently fading "ALVORA IT SOLUTION" text
- * away from a persistent, centering logo mark isn't possible with the
- * existing single fused raster asset (public/images/logo.png bakes
- * the icon and wordmark into one image) — there's no way to animate
- * "just the text region" of a flat PNG without cropping/masking it,
- * which risks a visibly misaligned cut. So mobile (`block md:hidden`)
- * renders the existing standalone icon (public/images/hero-mark.png,
- * already used elsewhere in this codebase) next to real text reading
- * `siteConfig.name`, in the site's own heading font/color — not a
- * redesign, just the structural split this interaction requires.
- * Desktop (`hidden md:block`) keeps the exact original `logo.png`
- * markup, completely untouched, so it stays pixel-perfect. Both
- * render unconditionally (toggled by CSS media query, not a JS
- * `isMobile` check) specifically so there's no hydration-mismatch
- * flash on mobile page loads.
- *
- * No `height` is ever animated (a stricter constraint than earlier
- * passes) — the "header shrinks" impression instead comes from a
- * separate floating glass pill with its own fixed (never-animated)
- * size, whose only motion is opacity/y entrance. The header's actual
- * box height never changes, so there's no reflow/CLS risk at all,
- * regardless of animation state.
- *
- * The x offset used to center the icon is computed from `offsetLeft`/
- * `offsetWidth` (layout geometry, unaffected by the *current* Framer
- * Motion transform, unlike `getBoundingClientRect`), composed across
- * two nested offsetParents (the translating wrapper, then the row) —
- * see `measure()` — so it's correct however many times it's remeasured
- * regardless of scroll/animation state at that moment.
+ * No `height` is ever animated — the "header compacts" impression
+ * comes entirely from the crossfade above plus a separate floating
+ * glass pill with its own fixed (never-animated) size, whose only
+ * motion is opacity/y entrance. The header's actual box height never
+ * changes, so there's no reflow/CLS risk at all, regardless of
+ * animation state.
  */
 export function Header() {
   const [scrolled, setScrolled] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(false);
-  const [logoShiftX, setLogoShiftX] = React.useState(0);
-  // Percent, along the wrapper's own width — see measure() below for
-  // why this can't just be the CSS default (50%).
-  const [logoOriginX, setLogoOriginX] = React.useState(50);
+  const [fullLogoInert, setFullLogoInert] = React.useState(false);
+  const [iconInert, setIconInert] = React.useState(true);
   const [hamburgerInert, setHamburgerInert] = React.useState(false);
   const shouldReduceMotion = useReducedMotion();
 
-  const rowRef = React.useRef<HTMLDivElement>(null);
-  const logoWrapRef = React.useRef<HTMLDivElement>(null);
-  const logoIconRef = React.useRef<HTMLSpanElement>(null);
   const lastYRef = React.useRef(0);
 
   // Existing 24px threshold — shared border/shadow, desktop + mobile,
@@ -132,36 +123,6 @@ export function Header() {
     update();
     mql.addEventListener("change", update);
     return () => mql.removeEventListener("change", update);
-  }, []);
-
-  React.useLayoutEffect(() => {
-    function measure() {
-      const row = rowRef.current;
-      const wrap = logoWrapRef.current;
-      const icon = logoIconRef.current;
-      if (!row || !wrap || !icon) return;
-      const rowCenter = row.offsetLeft + row.offsetWidth / 2;
-      // `icon`'s offsetParent is `wrap` (the nearest positioned
-      // ancestor); add wrap's own offsetLeft to bring both centers
-      // into the same frame (relative to `row`'s offsetParent).
-      const iconCenterInWrap = icon.offsetLeft + icon.offsetWidth / 2;
-      const iconCenter = wrap.offsetLeft + iconCenterInWrap;
-      setLogoShiftX(rowCenter - iconCenter);
-      // `wrap` also contains the (still layout-occupying, even at
-      // opacity 0) company-name text, so its own box is *wider* than
-      // just the icon — `scale()`'s default transform-origin (50% of
-      // THAT whole box) would shrink around the icon+text group's
-      // center, not the icon's, silently dragging the icon sideways
-      // as scale changes on top of the explicit translateX. Pinning
-      // transform-origin to the icon's own position keeps scale and
-      // translate both anchored to the same point.
-      setLogoOriginX(
-        wrap.offsetWidth > 0 ? (iconCenterInWrap / wrap.offsetWidth) * 100 : 50
-      );
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
   }, []);
 
   const { scrollY } = useScroll();
@@ -186,25 +147,28 @@ export function Header() {
   const active = isMobile && !shouldReduceMotion;
   const effectiveProgress = useTransform(smoothProgress, (p) => (active ? p : 0));
 
-  const logoX = useTransform(effectiveProgress, [0, 1], [0, logoShiftX]);
-  const logoScale = useTransform(effectiveProgress, [0, 1], [1, 0.83]); // ~17% smaller, within the 15–20% target
-  const companyNameOpacity = useTransform(
-    effectiveProgress,
-    [0, 0.2, 0.4, 0.6, 0.8, 1],
-    [1, 0.9, 0.7, 0.4, 0.1, 0]
-  );
+  const fullLogoOpacity = useTransform(effectiveProgress, [0, 1], [1, 0]);
+  const iconOpacity = useTransform(effectiveProgress, [0, 1], [0, 1]);
+  const logoGlowOpacity = useTransform(effectiveProgress, [0.6, 1], [0, 0.07]);
+  const pillOpacity = useTransform(effectiveProgress, [0, 1], [0, 1]);
+  const pillY = useTransform(effectiveProgress, [0, 1], [4, 0]);
   const hamburgerOpacity = useTransform(
     effectiveProgress,
     [0, 0.2, 0.4, 0.6, 0.8, 1],
     [1, 0.9, 0.7, 0.4, 0.15, 0]
   );
-  const logoGlowOpacity = useTransform(effectiveProgress, [0.6, 1], [0, 0.07]);
-  const pillOpacity = useTransform(effectiveProgress, [0.7, 1], [0, 1]);
-  const pillY = useTransform(effectiveProgress, [0.7, 1], [4, 0]);
 
   useMotionValueEvent(effectiveProgress, "change", (p) => {
     setHamburgerInert((prev) => {
       const next = p > 0.92;
+      return prev === next ? prev : next;
+    });
+    setFullLogoInert((prev) => {
+      const next = p > 0.92;
+      return prev === next ? prev : next;
+    });
+    setIconInert((prev) => {
+      const next = p < 0.08;
       return prev === next ? prev : next;
     });
   });
@@ -218,22 +182,14 @@ export function Header() {
     >
       {/* No `position: relative` here — `header`'s own `sticky`
           positioning is already the nearest positioned ancestor for
-          both the floating pill and the logo wrapper below, which
-          `measure()` (in the effect above) relies on: it needs
-          `row.offsetLeft` and the logo wrapper's `offsetLeft` in the
-          *same* coordinate frame to compute a correct centering
-          delta. Adding `relative` here would make `row` itself the
-          logo wrapper's offsetParent instead, breaking that shared
-          frame (and, on mobile, the pill's `left-1/2` centers on the
-          same point either way, since the container's own horizontal
-          padding is symmetric — so there's nothing to gain from it). */}
-      <div
-        ref={rowRef}
-        className="container flex h-[5.5rem] items-center justify-between"
-      >
+          the floating pill and the centered icon below, and on
+          mobile the container's own horizontal padding is symmetric,
+          so `left-1/2` centers on the same point either way. */}
+      <div className="container flex h-[5.5rem] items-center justify-between">
         {/* Floating glass nav pill — mobile only. Fixed size, never
             itself animated (no width/height in the transition list);
-            only opacity and a small entrance `y` move. */}
+            only opacity and a small entrance `y` move, in lockstep
+            with the icon's own fade-in below. */}
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 md:hidden"
           aria-hidden="true"
@@ -249,115 +205,101 @@ export function Header() {
           />
         </div>
 
+        {/* Full logo — the exact original lockup, byte-for-byte
+            unchanged (same asset, same width/height, same classes,
+            same spacing), in its normal position. Never moves or
+            scales; only fades out as the header compacts. */}
         <motion.div
-          ref={logoWrapRef}
-          className="relative"
-          style={{
-            x: logoX,
-            scale: logoScale,
-            transformOrigin: `${logoOriginX}% 50%`,
-            willChange: "transform",
-            backfaceVisibility: "hidden",
-          }}
+          style={{ opacity: fullLogoOpacity, willChange: "opacity" }}
+          inert={fullLogoInert}
         >
-          {/* Soft premium glow behind the centered logo — capped well
-              under 8% opacity per the brief, riding this wrapper's own
-              transform so it travels with the logo. */}
+          <Link
+            href="/"
+            className="group relative flex items-center gap-2"
+            aria-label={`${siteConfig.name} — Home`}
+          >
+            {/* Header logo — Vercel/Linear-inspired restraint, per explicit
+                client direction. Stays pure white at all times.
+                HOTFIX: a `group-hover:brightness-*` utility was removed
+                from here — Tailwind composes brightness/invert/drop-shadow
+                through shared `--tw-*` CSS custom properties, and a
+                hover-scoped brightness utility has higher specificity
+                than the base `brightness-0`, so it was overriding
+                (not combining with) `--tw-brightness` on hover. That
+                silently removed the "blackout" step `invert` depends on
+                to turn the colored artwork white, so hover was inverting
+                the ORIGINAL navy/teal colors instead — producing the
+                reported yellow/orange/red tint. Hover is now exactly
+                scale + a white drop-shadow glow; neither touches
+                brightness or invert, so this can't recur. */}
+            <Image
+              src="/images/logo.png"
+              alt={siteConfig.name}
+              width={170}
+              height={90}
+              priority
+              className="h-[56px] w-auto brightness-0 invert transition-all duration-slow ease-premium group-hover:scale-[1.02] group-hover:drop-shadow-[0_2px_14px_rgba(255,255,255,0.35)]"
+            />
+            {/* Optional shine — a single, very subtle light pass confined
+                to the logo's own silhouette (CSS mask referencing the
+                same PNG as its alpha shape, not a blend-mode trick — a
+                blend-mode sweep would be invisible against a solid-white
+                shape, the same issue caught and fixed on the splash
+                screen earlier). Runs once per hover, low opacity, and
+                never extends past the logo itself — "only the logo," per
+                the brief. Safe to delete this one block if it doesn't
+                read well in practice; nothing else depends on it. */}
+            <span
+              aria-hidden="true"
+              className="shimmer-surface pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-slow ease-premium group-hover:animate-shimmer group-hover:opacity-40"
+              style={{
+                WebkitMaskImage: "url(/images/logo.png)",
+                maskImage: "url(/images/logo.png)",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskPosition: "left center",
+                maskPosition: "left center",
+                animationIterationCount: 1,
+              }}
+            />
+          </Link>
+        </motion.div>
+
+        {/* Standalone icon — mobile only, statically centered (never
+            animated position/size), crossfading in as the full logo
+            crossfades out. A second, independent `<Link href="/">` —
+            `inert` ensures only whichever one is actually visible can
+            ever be focused or clicked. */}
+        <div className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 md:hidden">
+          {/* Soft premium glow behind the centered icon — capped well
+              under 8% opacity per the brief. */}
           <motion.div
             aria-hidden="true"
             className="pointer-events-none absolute -inset-3 -z-10 rounded-full bg-cyan blur-xl"
             style={{ opacity: logoGlowOpacity }}
           />
-
-          {/* Desktop — the exact original lockup, byte-for-byte
-              unchanged, so desktop stays pixel-perfect. Hidden below
-              md via CSS only (not a JS `isMobile` branch), so there's
-              no hydration-mismatch flash. */}
-          <div className="hidden md:block">
+          <motion.div
+            style={{ opacity: iconOpacity, willChange: "opacity" }}
+            inert={iconInert}
+          >
             <Link
               href="/"
-              className="group relative flex items-center gap-2"
+              className="relative flex items-center"
               aria-label={`${siteConfig.name} — Home`}
             >
-              {/* Header logo — Vercel/Linear-inspired restraint, per explicit
-                  client direction. Stays pure white at all times.
-                  HOTFIX: a `group-hover:brightness-*` utility was removed
-                  from here — Tailwind composes brightness/invert/drop-shadow
-                  through shared `--tw-*` CSS custom properties, and a
-                  hover-scoped brightness utility has higher specificity
-                  than the base `brightness-0`, so it was overriding
-                  (not combining with) `--tw-brightness` on hover. That
-                  silently removed the "blackout" step `invert` depends on
-                  to turn the colored artwork white, so hover was inverting
-                  the ORIGINAL navy/teal colors instead — producing the
-                  reported yellow/orange/red tint. Hover is now exactly
-                  scale + a white drop-shadow glow; neither touches
-                  brightness or invert, so this can't recur. */}
               <Image
-                src="/images/logo.png"
-                alt={siteConfig.name}
-                width={170}
-                height={90}
+                src="/images/hero-mark.png"
+                alt=""
+                width={40}
+                height={31}
                 priority
-                className="h-[56px] w-auto brightness-0 invert transition-all duration-slow ease-premium group-hover:scale-[1.02] group-hover:drop-shadow-[0_2px_14px_rgba(255,255,255,0.35)]"
-              />
-              {/* Optional shine — a single, very subtle light pass confined
-                  to the logo's own silhouette (CSS mask referencing the
-                  same PNG as its alpha shape, not a blend-mode trick — a
-                  blend-mode sweep would be invisible against a solid-white
-                  shape, the same issue caught and fixed on the splash
-                  screen earlier). Runs once per hover, low opacity, and
-                  never extends past the logo itself — "only the logo," per
-                  the brief. Safe to delete this one block if it doesn't
-                  read well in practice; nothing else depends on it. */}
-              <span
-                aria-hidden="true"
-                className="shimmer-surface pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-slow ease-premium group-hover:animate-shimmer group-hover:opacity-40"
-                style={{
-                  WebkitMaskImage: "url(/images/logo.png)",
-                  maskImage: "url(/images/logo.png)",
-                  WebkitMaskSize: "contain",
-                  maskSize: "contain",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskRepeat: "no-repeat",
-                  WebkitMaskPosition: "left center",
-                  maskPosition: "left center",
-                  animationIterationCount: 1,
-                }}
+                className="h-[40px] w-auto object-contain brightness-0 invert"
               />
             </Link>
-          </div>
-
-          {/* Mobile — icon + independently-fading company name. One
-              Link (matching the desktop pattern of a single logo
-              link) with an explicit `aria-label`, which — per ARIA —
-              takes over as the link's accessible name, so the visible
-              text inside isn't redundantly announced a second time. */}
-          <div className="flex items-center gap-2 md:hidden">
-            <Link
-              href="/"
-              className="flex items-center gap-2"
-              aria-label={`${siteConfig.name} — Home`}
-            >
-              <span ref={logoIconRef} className="relative block shrink-0">
-                <Image
-                  src="/images/hero-mark.png"
-                  alt=""
-                  width={40}
-                  height={31}
-                  priority
-                  className="h-[40px] w-auto object-contain brightness-0 invert"
-                />
-              </span>
-              <motion.span
-                className="whitespace-nowrap font-heading text-h6 uppercase tracking-wide text-primary"
-                style={{ opacity: companyNameOpacity, willChange: "opacity" }}
-              >
-                {siteConfig.name}
-              </motion.span>
-            </Link>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
         <MegaMenu items={primaryNav} />
 
