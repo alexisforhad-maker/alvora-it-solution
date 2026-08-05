@@ -48,7 +48,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 title={featured.title}
                 href={`/blog/${featured.slug}`}
                 heroImage={featured.heroImage}
-                categoryLabel={categoryLabels[featured.category]}
+                categoryLabel={categoryLabels[featured.category] ?? featured.category}
                 publishedAt={featured.publishedAt}
                 readingTimeMinutes={featured.readingTimeMinutes}
                 authorName={authorName(featured.authorId)}
@@ -64,7 +64,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                     title={post.title}
                     href={`/blog/${post.slug}`}
                     heroImage={post.heroImage}
-                    categoryLabel={categoryLabels[post.category]}
+                    categoryLabel={categoryLabels[post.category] ?? post.category}
                     publishedAt={post.publishedAt}
                     readingTimeMinutes={post.readingTimeMinutes}
                     authorName={authorName(post.authorId)}
