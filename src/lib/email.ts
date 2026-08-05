@@ -5,7 +5,6 @@ import { QuoteConfirmationEmail } from "@/emails/quote-confirmation";
 import { CareerConfirmationEmail } from "@/emails/career-confirmation";
 import { InternalNotificationEmail } from "@/emails/internal-notification";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.EMAIL_FROM ?? `${siteConfig.name} <hello@${siteConfig.domain}>`;
 const SALES_INBOX = process.env.EMAIL_TO_SALES ?? contactConfig.email;
 
@@ -15,7 +14,21 @@ const SALES_INBOX = process.env.EMAIL_TO_SALES ?? contactConfig.email;
  * handling, and template wiring stay centralized. Failures are logged
  * but never thrown — a submission should still succeed and save to
  * the database even if the confirmation email fails to send.
+ *
+ * The Resend client is created lazily (on first send, at request time)
+ * rather than at module scope — constructing it eagerly throws
+ * ("Missing API key") the moment this file is imported if
+ * RESEND_API_KEY isn't set, which crashes `next build`'s page-data
+ * collection for every route that imports this module.
  */
+let resendClient: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
 
 export async function sendContactConfirmation(to: string, fullName: string) {
   await safeSend({
@@ -25,7 +38,11 @@ export async function sendContactConfirmation(to: string, fullName: string) {
   });
 }
 
-export async function sendQuoteConfirmation(to: string, fullName: string, serviceNames: string[]) {
+export async function sendQuoteConfirmation(
+  to: string,
+  fullName: string,
+  serviceNames: string[]
+) {
   await safeSend({
     to,
     subject: "Your project details have been received — Alvora IT Solution",
@@ -41,7 +58,10 @@ export async function sendCareerConfirmation(to: string, fullName: string) {
   });
 }
 
-export async function sendInternalNotification(title: string, fields: { label: string; value: string }[]) {
+export async function sendInternalNotification(
+  title: string,
+  fields: { label: string; value: string }[]
+) {
   await safeSend({
     to: SALES_INBOX,
     subject: title,
@@ -49,9 +69,13 @@ export async function sendInternalNotification(title: string, fields: { label: s
   });
 }
 
-async function safeSend(params: { to: string; subject: string; react: React.ReactElement }) {
+async function safeSend(params: {
+  to: string;
+  subject: string;
+  react: React.ReactElement;
+}) {
   try {
-    await resend.emails.send({
+    await getResendClient().emails.send({
       from: FROM,
       to: params.to,
       subject: params.subject,
