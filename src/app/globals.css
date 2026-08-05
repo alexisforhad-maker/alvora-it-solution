@@ -462,3 +462,31 @@ h6 {
   filter: blur(18px);
   animation: cta-glow-pulse 6s ease-in-out infinite;
 }
+
+/* ==========================================================================
+   MOBILE HEADER MORPH — additive, mobile-only header chrome
+   Applied by header.tsx via a plain class toggle (no viewport check in
+   JS) — the `@media (max-width: 767px)` here is what actually restricts
+   it, so applying the class at any width above that is a guaranteed
+   no-op and desktop's header (border-border/shadow-elevated from the
+   existing `scrolled` state) is completely unaffected. Longhand
+   properties (border-bottom-color, not border-color) and placement
+   after every Tailwind utility in this file give it the specificity/
+   source-order edge it needs to override the `scrolled` classes.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .header-mobile-compact {
+    background-color: rgba(8, 11, 16, 0.93);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 1px 0 rgba(255, 255, 255, 0.04);
+    transition:
+      background-color var(--duration-slow) var(--ease-premium),
+      backdrop-filter var(--duration-slow) var(--ease-premium),
+      border-color var(--duration-slow) var(--ease-premium),
+      box-shadow var(--duration-slow) var(--ease-premium);
+  }
+}

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MegaMenu } from "@/components/layout/mega-menu";
@@ -31,16 +32,80 @@ import { primaryNav, siteConfig } from "@/config/site";
  * trimmed to its true content bounds (now ~1.89:1) and every usage's
  * width/height props updated to match, so w-auto sizing is accurate
  * everywhere it appears (this file, Footer, AdminSidebar, admin login).
+ *
+ * Mobile "morphing logo" scroll transition: below 768px, scrolling
+ * *down* past ~80px translates+scales the logo to a centered, 82%-size
+ * resting position via Framer Motion, fades the hamburger trigger out
+ * (and fully out of layout — see the `AnimatePresence` around
+ * `MobileNav` below), and the header chrome gets a deeper glass
+ * treatment (`.header-mobile-compact`, media-query-scoped in
+ * globals.css so it's a no-op at md+). Reversal is *direction*-based,
+ * not position-based — any upward scroll movement (a few px is
+ * enough) immediately reverses it, without waiting for a return to
+ * the top; `lastYRef` tracks the previous scrollY purely to compute
+ * that per-event delta and is never rendered.
+ *
+ * Desktop's existing `scrolled` (24px border/shadow) behavior is
+ * untouched — the new `compact` state and `isMobile` gate are
+ * additive, and the logo's animate variant is "natural" (x:0, scale:1,
+ * a no-op) whenever `isMobile` is false, so nothing here can affect
+ * desktop rendering. The x offset is computed from `offsetLeft`/
+ * `offsetWidth` (layout geometry, unlike `getBoundingClientRect`,
+ * which reflects the *current* transform) so it stays correct however
+ * many times it's remeasured.
  */
 export function Header() {
   const [scrolled, setScrolled] = React.useState(false);
+  const [compact, setCompact] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
+  const [logoShiftX, setLogoShiftX] = React.useState(0);
+  const shouldReduceMotion = useReducedMotion();
+
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const logoWrapRef = React.useRef<HTMLDivElement>(null);
+  const lastYRef = React.useRef(0);
 
   React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
+    lastYRef.current = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const delta = y - lastYRef.current;
+      setScrolled(y > 24);
+      if (delta > 2 && y > 80) {
+        setCompact(true);
+      } else if (delta < -2) {
+        setCompact(false);
+      }
+      lastYRef.current = y;
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    function measure() {
+      const row = rowRef.current;
+      const logo = logoWrapRef.current;
+      if (!row || !logo) return;
+      const rowCenter = row.offsetLeft + row.offsetWidth / 2;
+      const logoCenter = logo.offsetLeft + logo.offsetWidth / 2;
+      setLogoShiftX(rowCenter - logoCenter);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  const morphActive = isMobile && compact && !shouldReduceMotion;
 
   return (
     <header
@@ -48,62 +113,76 @@ export function Header() {
         "glass-panel sticky top-0 z-40 w-full border-b transition-all duration-base",
         scrolled
           ? "border-border shadow-elevated"
-          : "border-transparent bg-background/80"
+          : "border-transparent bg-background/80",
+        compact && "header-mobile-compact"
       )}
     >
-      <div className="container flex h-[5.5rem] items-center justify-between">
-        <Link
-          href="/"
-          className="group relative flex items-center gap-2"
-          aria-label={`${siteConfig.name} — Home`}
+      <div
+        ref={rowRef}
+        className="container flex h-[5.5rem] items-center justify-between"
+      >
+        <motion.div
+          ref={logoWrapRef}
+          animate={morphActive ? "compact" : "natural"}
+          variants={{
+            natural: { x: 0, scale: 1 },
+            compact: { x: logoShiftX, scale: 0.82 },
+          }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
-          {/* Header logo — Vercel/Linear-inspired restraint, per explicit
-              client direction. Stays pure white at all times.
-              HOTFIX: a `group-hover:brightness-*` utility was removed
-              from here — Tailwind composes brightness/invert/drop-shadow
-              through shared `--tw-*` CSS custom properties, and a
-              hover-scoped brightness utility has higher specificity
-              than the base `brightness-0`, so it was overriding
-              (not combining with) `--tw-brightness` on hover. That
-              silently removed the "blackout" step `invert` depends on
-              to turn the colored artwork white, so hover was inverting
-              the ORIGINAL navy/teal colors instead — producing the
-              reported yellow/orange/red tint. Hover is now exactly
-              scale + a white drop-shadow glow; neither touches
-              brightness or invert, so this can't recur. */}
-          <Image
-            src="/images/logo.png"
-            alt={siteConfig.name}
-            width={170}
-            height={90}
-            priority
-            className="h-[56px] w-auto brightness-0 invert transition-all duration-slow ease-premium group-hover:scale-[1.02] group-hover:drop-shadow-[0_2px_14px_rgba(255,255,255,0.35)]"
-          />
-          {/* Optional shine — a single, very subtle light pass confined
-              to the logo's own silhouette (CSS mask referencing the
-              same PNG as its alpha shape, not a blend-mode trick — a
-              blend-mode sweep would be invisible against a solid-white
-              shape, the same issue caught and fixed on the splash
-              screen earlier). Runs once per hover, low opacity, and
-              never extends past the logo itself — "only the logo," per
-              the brief. Safe to delete this one block if it doesn't
-              read well in practice; nothing else depends on it. */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-0 shimmer-surface transition-opacity duration-slow ease-premium group-hover:opacity-40 group-hover:animate-shimmer"
-            style={{
-              WebkitMaskImage: "url(/images/logo.png)",
-              maskImage: "url(/images/logo.png)",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "left center",
-              maskPosition: "left center",
-              animationIterationCount: 1,
-            }}
-          />
-        </Link>
+          <Link
+            href="/"
+            className="group relative flex items-center gap-2"
+            aria-label={`${siteConfig.name} — Home`}
+          >
+            {/* Header logo — Vercel/Linear-inspired restraint, per explicit
+                client direction. Stays pure white at all times.
+                HOTFIX: a `group-hover:brightness-*` utility was removed
+                from here — Tailwind composes brightness/invert/drop-shadow
+                through shared `--tw-*` CSS custom properties, and a
+                hover-scoped brightness utility has higher specificity
+                than the base `brightness-0`, so it was overriding
+                (not combining with) `--tw-brightness` on hover. That
+                silently removed the "blackout" step `invert` depends on
+                to turn the colored artwork white, so hover was inverting
+                the ORIGINAL navy/teal colors instead — producing the
+                reported yellow/orange/red tint. Hover is now exactly
+                scale + a white drop-shadow glow; neither touches
+                brightness or invert, so this can't recur. */}
+            <Image
+              src="/images/logo.png"
+              alt={siteConfig.name}
+              width={170}
+              height={90}
+              priority
+              className="h-[56px] w-auto brightness-0 invert transition-all duration-slow ease-premium group-hover:scale-[1.02] group-hover:drop-shadow-[0_2px_14px_rgba(255,255,255,0.35)]"
+            />
+            {/* Optional shine — a single, very subtle light pass confined
+                to the logo's own silhouette (CSS mask referencing the
+                same PNG as its alpha shape, not a blend-mode trick — a
+                blend-mode sweep would be invisible against a solid-white
+                shape, the same issue caught and fixed on the splash
+                screen earlier). Runs once per hover, low opacity, and
+                never extends past the logo itself — "only the logo," per
+                the brief. Safe to delete this one block if it doesn't
+                read well in practice; nothing else depends on it. */}
+            <span
+              aria-hidden="true"
+              className="shimmer-surface pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-slow ease-premium group-hover:animate-shimmer group-hover:opacity-40"
+              style={{
+                WebkitMaskImage: "url(/images/logo.png)",
+                maskImage: "url(/images/logo.png)",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskPosition: "left center",
+                maskPosition: "left center",
+                animationIterationCount: 1,
+              }}
+            />
+          </Link>
+        </motion.div>
 
         <MegaMenu items={primaryNav} />
 
@@ -115,7 +194,24 @@ export function Header() {
           <Button asChild size="lg" className="hidden sm:inline-flex">
             <Link href="/request-a-quote">Book a Free Consultation</Link>
           </Button>
-          <MobileNav />
+          {/* Fades out AND leaves layout (no placeholder) once the
+              compact mobile morph is active — AnimatePresence removes
+              it from the DOM only after its exit fade completes, and
+              the Drawer/menu it wraps locks page scroll while open
+              (Radix Dialog), so it can never be unmounted mid-use. */}
+          <AnimatePresence initial={false}>
+            {!morphActive && (
+              <motion.div
+                key="mobile-nav"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <MobileNav />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>
