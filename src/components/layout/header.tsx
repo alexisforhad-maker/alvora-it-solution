@@ -12,6 +12,15 @@ import { primaryNav, siteConfig } from "@/config/site";
 
 const EASE_PREMIUM = [0.22, 1, 0.36, 1] as const;
 
+// Below this scrollY, the header is always forced to its normal
+// (left, full-size) state — see the iPhone Safari note in onScroll().
+const TOP_LOCK = 8; // px
+// A single scroll event's |delta| must clear this before it's treated
+// as real, intentional scrolling — same reason: Safari's rubber-band
+// overscroll fires genuine 'scroll' events with tiny (often 1–2px)
+// deltas that aren't a user actually scrolling.
+const MIN_DIRECTION_DELTA = 3; // px
+
 /**
  * Sticky header — white background, subtle shadow appears only after
  * scrolling past the hero, per Phase 2 UI/UX spec (Navigation
@@ -52,8 +61,27 @@ const EASE_PREMIUM = [0.22, 1, 0.36, 1] as const;
  *     is exactly what makes reversal instant regardless of depth: at
  *     any scrollY, the very next upward pixel flips it back, because
  *     the comparison is always against the immediately preceding
- *     position, never a fixed line like "scrollY > 80". Equal `y`
- *     (no net movement) leaves the state untouched.
+ *     position, never a fixed line like "scrollY > 80".
+ *   - Two guards on top of that raw comparison, both there because of
+ *     one real iPhone Safari bug: scrolling back to the top fast
+ *     triggers Safari's native rubber-band overscroll bounce, which
+ *     fires genuine (not synthetic) `scroll` events with `scrollY`
+ *     dipping and rising by a few px around 0 — read literally, that
+ *     bounce looks exactly like "the user scrolled down," so the logo
+ *     was incorrectly snapping back to center right as it reached the
+ *     top. Fixed with:
+ *       1. `TOP_LOCK` (8px) — while `scrollY <= TOP_LOCK`, `compact`
+ *          is force-set to `false` unconditionally, no matter what
+ *          the delta says. The bounce never gets a vote here.
+ *       2. `MIN_DIRECTION_DELTA` (3px) — any single event whose
+ *          `|delta|` doesn't clear this is ignored outright (state
+ *          untouched); this is what filters out the sub-few-px
+ *          jitter the bounce (and scroll momentum in general)
+ *          produces, so only deltas large enough to represent real,
+ *          intentional scrolling ever flip `compact`.
+ *     `lastYRef` still updates on every event (including ignored
+ *     ones), so the next real delta is always measured from the true
+ *     last position, not a stale one.
  *   - The animation itself is a plain two-value Framer Motion
  *     `animate`/`variants` toggle (`"left"` ↔ `"center"`, x + scale
  *     only) with a fixed 460ms/cubic-bezier(0.22,1,0.36,1) transition
@@ -92,15 +120,23 @@ export function Header() {
     lastYRef.current = window.scrollY;
     function onScroll() {
       const y = window.scrollY;
-      const lastY = lastYRef.current;
+      const delta = y - lastYRef.current;
+
       // Existing 24px threshold — shared border/shadow, desktop +
       // mobile, unrelated to the direction-based logo toggle below.
       setScrolled(y > 24);
-      if (y > lastY) {
-        setCompact(true);
-      } else if (y < lastY) {
+
+      if (y <= TOP_LOCK) {
+        // Force-normal near the top, ignoring the bounce's delta
+        // entirely — this is what stops Safari's rubber-band
+        // overscroll from ever reading as a "scroll down."
         setCompact(false);
+      } else if (Math.abs(delta) >= MIN_DIRECTION_DELTA) {
+        setCompact(delta > 0);
       }
+      // else: |delta| too small to be real scrolling — ignored,
+      // `compact` untouched.
+
       lastYRef.current = y;
     }
     onScroll();
@@ -156,7 +192,19 @@ export function Header() {
             center: { x: logoShiftX, scale: 0.87 }, // ~13% smaller, within the 10–15% target
           }}
           transition={{ duration: 0.46, ease: EASE_PREMIUM }}
-          style={{ willChange: "transform", backfaceVisibility: "hidden" }}
+          style={{
+            // `z: 0` is Framer Motion's own way of forcing a 3D
+            // (translateZ) transform — it composes into the same
+            // matrix as x/scale, so this promotes the layer to the
+            // GPU compositor without fighting Framer Motion's own
+            // ownership of the `transform` property (a raw
+            // `transform: translateZ(0)` string in this same style
+            // object would just get overwritten by the x/scale it
+            // manages).
+            z: 0,
+            willChange: "transform",
+            backfaceVisibility: "hidden",
+          }}
         >
           <Link
             href="/"
