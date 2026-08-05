@@ -34,16 +34,26 @@ import { primaryNav, siteConfig } from "@/config/site";
  * everywhere it appears (this file, Footer, AdminSidebar, admin login).
  *
  * Mobile "morphing logo" scroll transition: below 768px, scrolling
- * *down* past ~80px translates+scales the logo to a centered, 82%-size
- * resting position via Framer Motion, fades the hamburger trigger out
- * (and fully out of layout — see the `AnimatePresence` around
- * `MobileNav` below), and the header chrome gets a deeper glass
- * treatment (`.header-mobile-compact`, media-query-scoped in
- * globals.css so it's a no-op at md+). Reversal is *direction*-based,
- * not position-based — any upward scroll movement (a few px is
- * enough) immediately reverses it, without waiting for a return to
- * the top; `lastYRef` tracks the previous scrollY purely to compute
- * that per-event delta and is never rendered.
+ * *down* past ~80px translates+scales the logo to a centered, 80%-size
+ * resting position via Framer Motion (plus a soft <10%-opacity cyan
+ * glow that fades in behind it, riding the same wrapper transform),
+ * fades the hamburger trigger out (and fully out of layout — see the
+ * `AnimatePresence` around `MobileNav` below), and the header chrome
+ * shrinks to a slim glass bar (`.header-mobile-compact` +
+ * `.header-row`, both media-query-scoped in globals.css so they're a
+ * no-op at md+). Reversal is *direction*-based, not position-based —
+ * any upward scroll movement (a few px is enough) immediately
+ * reverses it, without waiting for a return to the top; `lastYRef`
+ * tracks the previous scrollY purely to compute that per-event delta
+ * and is never rendered.
+ *
+ * The row's `height` is the one deliberate exception to "animate only
+ * transform/opacity" here — shrinking a sticky header's actual box
+ * height can't be faked with `scale` without the header's own
+ * background clipping to a smaller box and revealing whatever's
+ * behind it, so `.header-row`'s height transition is a plain (but
+ * cheap: one small, isolated, already-`sticky` element, not a
+ * page-wide reflow) CSS transition instead.
  *
  * Desktop's existing `scrolled` (24px border/shadow) behavior is
  * untouched — the new `compact` state and `isMobile` gate are
@@ -114,22 +124,41 @@ export function Header() {
         scrolled
           ? "border-border shadow-elevated"
           : "border-transparent bg-background/80",
-        compact && "header-mobile-compact"
+        // Tied to `morphActive` (not raw `compact`) so the header's
+        // CSS-driven chrome/height and the logo's Framer Motion state
+        // always move — or stay frozen — together. Keying this off
+        // `compact` alone would let the header shrink/darken under
+        // `prefers-reduced-motion` while the (motion-gated) logo stays
+        // put, cramming a full-size logo into a 56px bar.
+        morphActive && "header-mobile-compact"
       )}
     >
       <div
         ref={rowRef}
-        className="container flex h-[5.5rem] items-center justify-between"
+        className="header-row container flex h-[5.5rem] items-center justify-between"
       >
         <motion.div
           ref={logoWrapRef}
+          className="relative"
           animate={morphActive ? "compact" : "natural"}
           variants={{
             natural: { x: 0, scale: 1 },
-            compact: { x: logoShiftX, scale: 0.82 },
+            compact: { x: logoShiftX, scale: 0.8 },
           }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
+          {/* Soft premium glow behind the centered logo — capped well
+              under 10% opacity per the brief, fades in on the exact
+              same schedule as the logo since it rides this wrapper's
+              own transform (translate/scale) and only ever animates
+              its own opacity independently. */}
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-3 -z-10 rounded-full bg-cyan blur-xl"
+            initial={false}
+            animate={{ opacity: morphActive ? 0.08 : 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          />
           <Link
             href="/"
             className="group relative flex items-center gap-2"
@@ -206,7 +235,7 @@ export function Header() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
               >
                 <MobileNav />
               </motion.div>

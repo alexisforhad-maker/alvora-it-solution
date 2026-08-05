@@ -467,26 +467,56 @@ h6 {
    MOBILE HEADER MORPH — additive, mobile-only header chrome
    Applied by header.tsx via a plain class toggle (no viewport check in
    JS) — the `@media (max-width: 767px)` here is what actually restricts
-   it, so applying the class at any width above that is a guaranteed
+   it, so applying the classes at any width above that is a guaranteed
    no-op and desktop's header (border-border/shadow-elevated from the
-   existing `scrolled` state) is completely unaffected. Longhand
-   properties (border-bottom-color, not border-color) and placement
-   after every Tailwind utility in this file give it the specificity/
-   source-order edge it needs to override the `scrolled` classes.
+   existing `scrolled` state, and its 88px row height) is completely
+   unaffected. `.header-mobile-compact .header-row` (two classes) beats
+   the single-class Tailwind `h-[5.5rem]` utility on specificity alone,
+   regardless of source order; the other longhand overrides here
+   (border-bottom-color, not border-color) win on source-order, since
+   this block sits after every Tailwind utility in this file.
+
+   Timing is 600ms/cubic-bezier(0.22,1,0.36,1) throughout, matching the
+   logo/hamburger Framer Motion transitions in header.tsx so every part
+   of this moves in lockstep. `header-glow-settle` is the one exception
+   — a one-shot ~1s "illuminate then settle" pass on the bottom-border
+   glow (deliberately un-synced, per the brief), which re-plays every
+   time `.header-mobile-compact` is (re)applied since CSS animations
+   restart on their triggering class being added.
    ========================================================================== */
+@keyframes header-glow-settle {
+  0% {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 1px 0 rgba(255, 255, 255, 0.04),
+      0 2px 20px rgba(70, 215, 215, 0.35);
+  }
+  100% {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 1px 0 rgba(255, 255, 255, 0.04),
+      0 2px 14px rgba(70, 215, 215, 0.12);
+  }
+}
+
 @media (max-width: 767px) {
+  .header-row {
+    transition: height 0.6s var(--ease-premium);
+  }
+
+  .header-mobile-compact .header-row {
+    height: 56px;
+  }
+
   .header-mobile-compact {
     background-color: rgba(8, 11, 16, 0.93);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom-color: rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 1px 0 rgba(255, 255, 255, 0.04);
+    border-bottom-color: rgba(70, 215, 215, 0.22);
+    animation: header-glow-settle 1s ease-out forwards;
     transition:
-      background-color var(--duration-slow) var(--ease-premium),
-      backdrop-filter var(--duration-slow) var(--ease-premium),
-      border-color var(--duration-slow) var(--ease-premium),
-      box-shadow var(--duration-slow) var(--ease-premium);
+      background-color 0.6s var(--ease-premium),
+      backdrop-filter 0.6s var(--ease-premium),
+      border-color 0.6s var(--ease-premium);
   }
 }
