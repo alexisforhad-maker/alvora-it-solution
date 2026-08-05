@@ -464,59 +464,39 @@ h6 {
 }
 
 /* ==========================================================================
-   MOBILE HEADER MORPH — additive, mobile-only header chrome
-   Applied by header.tsx via a plain class toggle (no viewport check in
-   JS) — the `@media (max-width: 767px)` here is what actually restricts
-   it, so applying the classes at any width above that is a guaranteed
-   no-op and desktop's header (border-border/shadow-elevated from the
-   existing `scrolled` state, and its 88px row height) is completely
-   unaffected. `.header-mobile-compact .header-row` (two classes) beats
-   the single-class Tailwind `h-[5.5rem]` utility on specificity alone,
-   regardless of source order; the other longhand overrides here
-   (border-bottom-color, not border-color) win on source-order, since
-   this block sits after every Tailwind utility in this file.
+   MOBILE FLOATING NAV PILL — additive, mobile-only header chrome
+   Rendered by header.tsx unconditionally (no `isMobile` JS branch, to
+   avoid a hydration-mismatch flash on mobile loads) and gated purely
+   by this `@media (max-width: 767px)` block, so it's a guaranteed
+   no-op at md+ — desktop's header is completely unaffected.
 
-   Timing is 600ms/cubic-bezier(0.22,1,0.36,1) throughout, matching the
-   logo/hamburger Framer Motion transitions in header.tsx so every part
-   of this moves in lockstep. `header-glow-settle` is the one exception
-   — a one-shot ~1s "illuminate then settle" pass on the bottom-border
-   glow (deliberately un-synced, per the brief), which re-plays every
-   time `.header-mobile-compact` is (re)applied since CSS animations
-   restart on their triggering class being added.
+   The pill's own size is fixed (h-14/w-[168px] in header.tsx) and
+   never itself animated — only its opacity/y (entrance) move, driven
+   by a Framer Motion MotionValue. `floating-pill-settle` is a one-shot
+   ~1s "95% opaque, easing to a resting 80%" pass on the glass
+   background (deliberately its own timing, distinct from the
+   continuous scroll-driven opacity fade-in), replaying each time the
+   pill re-enters (CSS animations restart whenever the element mounts/
+   the animation is re-triggered — here, effectively every time
+   opacity crosses back up from 0).
    ========================================================================== */
-@keyframes header-glow-settle {
+@keyframes floating-pill-settle {
   0% {
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 1px 0 rgba(255, 255, 255, 0.04),
-      0 2px 20px rgba(70, 215, 215, 0.35);
+    background-color: rgba(8, 11, 16, 0.95);
   }
   100% {
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 1px 0 rgba(255, 255, 255, 0.04),
-      0 2px 14px rgba(70, 215, 215, 0.12);
+    background-color: rgba(8, 11, 16, 0.8);
   }
 }
 
 @media (max-width: 767px) {
-  .header-row {
-    transition: height 0.6s var(--ease-premium);
-  }
-
-  .header-mobile-compact .header-row {
-    height: 56px;
-  }
-
-  .header-mobile-compact {
-    background-color: rgba(8, 11, 16, 0.93);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom-color: rgba(70, 215, 215, 0.22);
-    animation: header-glow-settle 1s ease-out forwards;
-    transition:
-      background-color 0.6s var(--ease-premium),
-      backdrop-filter 0.6s var(--ease-premium),
-      border-color 0.6s var(--ease-premium);
+  .floating-nav-pill {
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.35),
+      0 2px 10px rgba(70, 215, 215, 0.1);
+    animation: floating-pill-settle 1s ease-out forwards;
   }
 }
