@@ -220,15 +220,21 @@ h6 {
    near-black page the same technique reads as a genuine "blurred
    aurora" glow, so opacity/spread were both increased. */
 .bg-mesh-wash {
-  background-image:
-    radial-gradient(at 12% 8%, rgba(70, 215, 215, 0.22) 0px, transparent 52%),
+  background-image: radial-gradient(
+      at 12% 8%,
+      rgba(70, 215, 215, 0.22) 0px,
+      transparent 52%
+    ),
     radial-gradient(at 88% 0%, rgba(116, 101, 240, 0.18) 0px, transparent 48%),
     radial-gradient(at 50% 100%, rgba(79, 140, 255, 0.16) 0px, transparent 55%);
 }
 
 .bg-mesh-wash-dark {
-  background-image:
-    radial-gradient(at 15% 20%, rgba(70, 215, 215, 0.32) 0px, transparent 50%),
+  background-image: radial-gradient(
+      at 15% 20%,
+      rgba(70, 215, 215, 0.32) 0px,
+      transparent 50%
+    ),
     radial-gradient(at 85% 0%, rgba(116, 101, 240, 0.24) 0px, transparent 45%),
     radial-gradient(at 50% 100%, rgba(79, 140, 255, 0.22) 0px, transparent 55%);
 }
@@ -238,11 +244,14 @@ h6 {
    switched from a navy tint (invisible on near-black) to a low-opacity
    white tint. */
 .bg-grid-faint {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 40px 40px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    #000 40%,
+    transparent 100%
+  );
   mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
 }
 
@@ -289,8 +298,11 @@ h6 {
 
 /* Large blurred color-orb backdrop for hero/CTA-level moments. */
 .bg-aurora {
-  background-image:
-    radial-gradient(at 20% 30%, rgba(70, 215, 215, 0.30) 0px, transparent 55%),
+  background-image: radial-gradient(
+      at 20% 30%,
+      rgba(70, 215, 215, 0.3) 0px,
+      transparent 55%
+    ),
     radial-gradient(at 80% 20%, rgba(116, 101, 240, 0.28) 0px, transparent 55%),
     radial-gradient(at 50% 85%, rgba(79, 140, 255, 0.24) 0px, transparent 55%);
   filter: blur(40px);
@@ -328,5 +340,125 @@ h6 {
     transform var(--duration-slow) var(--ease-premium);
 }
 .logo-glow-hover:hover {
-  filter: drop-shadow(0 0 18px rgba(70, 215, 215, 0.45)) drop-shadow(0 0 4px rgba(79, 140, 255, 0.35));
+  filter: drop-shadow(0 0 18px rgba(70, 215, 215, 0.45))
+    drop-shadow(0 0 4px rgba(79, 140, 255, 0.35));
+}
+
+/* ==========================================================================
+   MOBILE HERO FIRST-IMPRESSION — additive, mobile-only layer
+   Rendered only below md (768px) via HeroMobileBackground (`md:hidden`),
+   so desktop keeps the existing bg-mesh-wash/bg-grid-faint treatment in
+   hero.tsx completely unchanged. Everything here is pure CSS (no JS/
+   canvas), moves very slowly, and — like every animation sitewide —
+   is neutralized by the `prefers-reduced-motion: reduce` block above.
+   ========================================================================== */
+@keyframes hero-grid-pan {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+@keyframes hero-glow-drift {
+  0%,
+  100% {
+    transform: translate3d(-8%, -6%, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(8%, 8%, 0) scale(1.08);
+    opacity: 0.7;
+  }
+}
+
+@keyframes hero-aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(6%, 6%, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate3d(-8%, -8%, 0) scale(1.06);
+    opacity: 0.55;
+  }
+}
+
+@keyframes hero-particle-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate3d(3px, -14px, 0);
+    opacity: 0.6;
+  }
+}
+
+@keyframes cta-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.05);
+  }
+}
+
+/* Sub-15%-opacity radial depth, per the "Premium Background Depth" spec. */
+.hero-bg-depth {
+  background-image: radial-gradient(
+      at 22% 18%,
+      rgba(70, 215, 215, 0.12) 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 82% 78%, rgba(79, 140, 255, 0.1) 0px, transparent 55%);
+}
+
+/* Subtle animated grid — same line treatment as .bg-grid-faint, panning slowly. */
+.hero-bg-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 65% at 50% 15%,
+    #000 40%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(ellipse 90% 65% at 50% 15%, #000 40%, transparent 100%);
+  animation: hero-grid-pan 32s linear infinite alternate;
+}
+
+/* Soft moving cyan glow. */
+.hero-bg-glow-cyan {
+  background: radial-gradient(circle, rgba(70, 215, 215, 0.32) 0%, transparent 70%);
+  filter: blur(38px);
+  animation: hero-glow-drift 22s ease-in-out infinite;
+}
+
+/* Gentle blue aurora, offset so it never moves in sync with the cyan glow. */
+.hero-bg-aurora-blue {
+  background: radial-gradient(circle, rgba(79, 140, 255, 0.26) 0%, transparent 70%);
+  filter: blur(46px);
+  animation: hero-aurora-drift 26s ease-in-out infinite;
+  animation-delay: -8s;
+}
+
+/* Tiny floating particles — per-instance delay/duration set inline. */
+.hero-bg-particle {
+  animation-name: hero-particle-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  box-shadow: 0 0 6px rgba(70, 215, 215, 0.55);
+}
+
+/* Soft pulse behind the primary hero CTA — one full cycle every 6s. */
+.hero-cta-glow {
+  background: radial-gradient(circle, rgba(70, 215, 215, 0.4) 0%, transparent 72%);
+  filter: blur(18px);
+  animation: cta-glow-pulse 6s ease-in-out infinite;
 }

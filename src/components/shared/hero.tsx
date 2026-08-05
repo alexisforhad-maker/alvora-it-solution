@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { FadeUp } from "@/components/animation/fade-up";
+import { HeroFullContent } from "@/components/shared/hero-full-content";
 
 export interface HeroProps {
   eyebrow?: string;
@@ -39,7 +40,7 @@ export interface HeroProps {
  * unmistakably-Alvora geometry in front of every visitor on every
  * page, without touching layout, motion, or copy at all.
  */
-const eyebrowBadgeClass =
+export const eyebrowBadgeClass =
   "inline-flex items-center gap-2 border border-secondary/25 bg-secondary/10 px-4 py-1.5 font-heading text-h6 text-secondary [clip-path:polygon(10px_0,100%_0,calc(100%-10px)_100%,0_100%)]";
 
 export function Hero({
@@ -52,50 +53,31 @@ export function Hero({
   className,
 }: HeroProps) {
   if (variant === "full") {
+    // Factored into its own client component (hero-full-content.tsx) —
+    // see that file's docstring for why (per-element Framer Motion
+    // variants + the mobile-only illustration reorder need "use
+    // client", which this file deliberately doesn't carry so the
+    // "compact" variant below — used on every other page — stays a
+    // plain server component, untouched).
     return (
-      <div className="relative overflow-hidden">
-        <div
-          className="bg-mesh-wash bg-grid-faint pointer-events-none absolute inset-0"
-          aria-hidden="true"
-        />
-        <div
-          className={cn(
-            // Mobile gap between the copy block and the illustration is
-            // intentionally tighter (28px) than the desktop column gap
-            // (48px, unchanged) — keeps the first mobile screen compact
-            // instead of leaving a large vertical gap before the visual.
-            "container relative grid gap-[28px] pb-[64px] pt-[56px] md:grid-cols-5 md:items-center md:gap-[48px] md:pb-[80px] md:pt-[176px]",
-            className
-          )}
-        >
-          <FadeUp className="md:col-span-3">
-            {eyebrow && (
-              <span className={eyebrowBadgeClass}>
-                <span className="size-1.5 rotate-45 bg-secondary" aria-hidden="true" />
-                {eyebrow}
-              </span>
-            )}
-            <h1 className="text-balance mt-5 text-h1-mobile font-heading text-primary md:text-h1">
-              {title}
-            </h1>
-            {description && (
-              <p className="mt-4 max-w-xl text-body-lg text-neutral-600">{description}</p>
-            )}
-            {actions && <div className="mt-8 flex flex-wrap gap-4">{actions}</div>}
-          </FadeUp>
-          {visual && (
-            <FadeUp delay={0.15} className="md:col-span-2">
-              {visual}
-            </FadeUp>
-          )}
-        </div>
-      </div>
+      <HeroFullContent
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+        actions={actions}
+        visual={visual}
+        className={className}
+        eyebrowBadgeClass={eyebrowBadgeClass}
+      />
     );
   }
 
   return (
     <div className="relative overflow-hidden border-b border-border">
-      <div className="bg-mesh-wash pointer-events-none absolute inset-0 opacity-70" aria-hidden="true" />
+      <div
+        className="bg-mesh-wash pointer-events-none absolute inset-0 opacity-70"
+        aria-hidden="true"
+      />
       <div className={cn("container relative py-8 md:py-9", className)}>
         <FadeUp className="max-w-2xl">
           {eyebrow && (
@@ -104,7 +86,9 @@ export function Hero({
               {eyebrow}
             </span>
           )}
-          <h1 className="text-balance mt-4 text-h2-mobile font-heading text-primary md:text-h1">{title}</h1>
+          <h1 className="mt-4 text-balance font-heading text-h2-mobile text-primary md:text-h1">
+            {title}
+          </h1>
           {description && (
             <p className="mt-4 text-body-lg text-neutral-600">{description}</p>
           )}
