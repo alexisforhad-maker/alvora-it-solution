@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+build
+coverage
+public
+*.md
+pnpm-lock.yaml
+package-lock.json

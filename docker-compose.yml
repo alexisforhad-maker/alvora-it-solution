@@ -1,0 +1,24 @@
+# Local development database only — not used in production (see
+# DEPLOYMENT.md for production database setup with a managed provider).
+#
+# Start:  docker compose up -d
+# Stop:   docker compose down
+# Reset:  docker compose down -v   (deletes all local data)
+#
+# Credentials and port here match the default DATABASE_URL in
+# .env.example exactly — if you change one, change the other.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: alvora
+      POSTGRES_PASSWORD: alvora_dev_password
+      POSTGRES_DB: alvora_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - alvora_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  alvora_postgres_data:

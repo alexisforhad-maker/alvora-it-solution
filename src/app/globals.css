@@ -1,0 +1,332 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   ALVORA IT SOLUTION — DESIGN TOKENS
+   Mirrors tailwind.config.ts so the same values are available as raw CSS
+   variables for use outside Tailwind utility classes (e.g. inline SVG,
+   third-party embeds like the consultation calendar widget).
+   ========================================================================== */
+:root {
+  /* Color — Black Edition */
+  --color-primary: #edf2f8; /* light — headings (was the brand navy) */
+  --color-primary-dark: #0b3a56; /* brand navy — dark-panel backgrounds only */
+  --color-secondary: #0e8c8c;
+  --color-secondary-light: #3aa9a9;
+  --color-accent: #f2a93b;
+  --color-cyan: #46d7d7;
+  --color-accent-blue: #4f8cff;
+  --color-accent-purple: #7465f0; /* desaturated/deepened from #7b6cff — "subtle violet" */
+  --color-neutral-900: #edf1f6;
+  --color-neutral-600: #93a2b4;
+  --color-neutral-300: #5a6b82;
+  --color-neutral-100: #0e1622;
+  --color-background: #05070a;
+  --color-surface: #111827;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-success: #22c55e;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+
+  /* Typography */
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  /* Spacing (8px base scale) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+  --space-9: 128px;
+  --space-10: 160px;
+
+  /* Radius */
+  --radius-input: 8px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --radius-pill: 999px;
+  --radius-structural: 0px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+  --ease-standard: ease-out;
+  --ease-inout: ease-in-out;
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
+  --container-max: 1200px;
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-neutral-900);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  color: var(--color-primary);
+}
+
+/* ==========================================================================
+   ACCESSIBILITY — non-negotiable per Design System §11
+   ========================================================================== */
+
+/* Visible focus ring on every interactive element. Never removed. */
+:focus-visible {
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Skip-to-content link, used on every page per Phase 2 spec. Black
+   Edition: background pinned to --color-primary-dark (the brand navy)
+   rather than --color-primary — that token is now a light heading
+   color, which would make the white label text on it unreadable. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--color-primary-dark);
+  color: #fff;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 0 0 var(--radius-input) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* Respect prefers-reduced-motion sitewide per Design System §10 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   PROSE — long-form article body (Blog Details), line-length capped
+   ========================================================================== */
+.prose-alvora {
+  max-width: 70ch;
+  color: var(--color-neutral-900);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.prose-alvora h2 {
+  font-size: 28px;
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+.prose-alvora h3 {
+  font-size: 22px;
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.prose-alvora p {
+  margin-bottom: var(--space-4);
+}
+
+.prose-alvora a {
+  color: var(--color-secondary-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ==========================================================================
+   PREMIUM POLISH — additive utility layer
+   Purely presentational helpers used by the visual refresh. Nothing here
+   changes layout structure, data, or behavior — only surface treatment
+   (gradients, texture, hover physics) on top of the existing design
+   tokens above.
+   ========================================================================== */
+
+/* Subtle upward lift used on interactive cards/panels on hover. Paired
+   with an existing shadow utility (shadow-card-hover / shadow-elevated-hover)
+   in the component's className, never used alone. */
+.hover-lift {
+  /* ease-premium (Apple/Linear-style expo-out) — part of the shared
+     motion-system refinement across Button/Card/icon-badge hovers, the
+     hero illustration, and the splash screen. Duration bumped from
+     --duration-base (250ms) to --duration-slow (400ms) — within the
+     300–450ms range requested for card-hover motion quality; every
+     card sitewide shares this one rule, so this is a single-point
+     upgrade for all of them at once. */
+  transition:
+    transform var(--duration-slow) var(--ease-premium),
+    box-shadow var(--duration-slow) var(--ease-premium),
+    border-color var(--duration-slow) var(--ease-premium);
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+/* Gradient headline treatment — reserved for a handful of hero-level
+   moments, not for body copy. Black Edition: cyan → accent-blue →
+   purple, richer than the light theme's two-stop navy/teal blend. */
+.text-gradient-primary {
+  background-image: linear-gradient(
+    120deg,
+    var(--color-cyan) 0%,
+    var(--color-accent-blue) 55%,
+    var(--color-accent-purple) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Soft multi-blob gradient wash used behind hero/CTA/section backgrounds.
+   Black Edition: this was a barely-there tint on a white page; on a
+   near-black page the same technique reads as a genuine "blurred
+   aurora" glow, so opacity/spread were both increased. */
+.bg-mesh-wash {
+  background-image:
+    radial-gradient(at 12% 8%, rgba(70, 215, 215, 0.22) 0px, transparent 52%),
+    radial-gradient(at 88% 0%, rgba(116, 101, 240, 0.18) 0px, transparent 48%),
+    radial-gradient(at 50% 100%, rgba(79, 140, 255, 0.16) 0px, transparent 55%);
+}
+
+.bg-mesh-wash-dark {
+  background-image:
+    radial-gradient(at 15% 20%, rgba(70, 215, 215, 0.32) 0px, transparent 50%),
+    radial-gradient(at 85% 0%, rgba(116, 101, 240, 0.24) 0px, transparent 45%),
+    radial-gradient(at 50% 100%, rgba(79, 140, 255, 0.22) 0px, transparent 55%);
+}
+
+/* Faint engineering-grid backdrop — echoes the faceted/geometric brand
+   language without competing with foreground content. Line color
+   switched from a navy tint (invisible on near-black) to a low-opacity
+   white tint. */
+.bg-grid-faint {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* Frosted panel — sticky header, floating summary cards. Black Edition:
+   dark frosted glass instead of light frosted glass. */
+.glass-panel {
+  background-color: rgba(16, 24, 39, 0.62);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Noise-free shimmer sweep for skeletons / loading states, and for a
+   one-shot "sheen" pass across premium CTA buttons on hover. */
+.shimmer-surface {
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.16) 45%,
+    rgba(255, 255, 255, 0.16) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+}
+
+/* Continuous horizontal scroller for logo/marquee-style strips. Pauses
+   politely for reduced-motion users via the sitewide media query above. */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 28s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Balanced heading wrap — avoids orphaned single words on long H1/H2s
+   in modern browsers, falls back silently otherwise. */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ---- Black Edition additions ---- */
+
+/* Large blurred color-orb backdrop for hero/CTA-level moments. */
+.bg-aurora {
+  background-image:
+    radial-gradient(at 20% 30%, rgba(70, 215, 215, 0.30) 0px, transparent 55%),
+    radial-gradient(at 80% 20%, rgba(116, 101, 240, 0.28) 0px, transparent 55%),
+    radial-gradient(at 50% 85%, rgba(79, 140, 255, 0.24) 0px, transparent 55%);
+  filter: blur(40px);
+}
+
+/* Very subtle fractal noise texture — breaks up large flat dark areas. */
+.bg-noise {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.035;
+}
+
+/* Soft vignette (Background Atmosphere Refinement) — a gentle inward
+   darkening toward a section's own edges, so it reads as a bounded,
+   engineered panel rather than a flat rectangle. Fully transparent
+   through the inner 60% of the box; only the outer band darkens, and
+   only up to 22% black at the very corner. Scales automatically to
+   whatever box it's applied to via percentage-based ellipse sizing —
+   applied uniformly, sitewide, via SectionWrapper. Deliberately the
+   most restrained layer in this file: it's meant to be felt, not
+   seen, on the already near-black base background, and only reads as
+   genuine depth on lighter/elevated surfaces. */
+.bg-vignette {
+  background-image: radial-gradient(
+    ellipse 120% 100% at 50% 50%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.22) 100%
+  );
+}
+
+/* Linear-inspired logo hover treatment — hover-only, no continuous
+   motion (the header logo must stay perfectly still otherwise). */
+.logo-glow-hover {
+  transition:
+    filter var(--duration-slow) var(--ease-premium),
+    transform var(--duration-slow) var(--ease-premium);
+}
+.logo-glow-hover:hover {
+  filter: drop-shadow(0 0 18px rgba(70, 215, 215, 0.45)) drop-shadow(0 0 4px rgba(79, 140, 255, 0.35));
+}

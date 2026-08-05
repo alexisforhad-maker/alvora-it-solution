@@ -1,0 +1,509 @@
+// ============================================================================
+// ALVORA IT SOLUTION — PRISMA SCHEMA
+// Production database schema backing the CMS, Auth.js, and all public
+// form submissions. Relationships are modeled explicitly (rather than
+// scalar string arrays) wherever content is cross-linked on the public
+// site — Service ↔ Industry ↔ Portfolio ↔ Technology ↔ SEO — so that
+// relationship, mirroring the slug-based cross-linking already built
+// into the frontend (src/lib/content-helpers.ts) at the data layer.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTH.JS — REQUIRED MODELS (PrismaAdapter)
+// ============================================================================
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  /// Hashed with bcrypt — never store or log the plaintext password.
+  passwordHash  String?
+  role          Role      @default(EDITOR)
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  blogPosts          BlogPost[]   @relation("AuthoredPosts")
+  uploadedMedia      MediaAsset[] @relation("UploadedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================================================
+// SHARED / LOOKUP MODELS
+// ============================================================================
+
+model Technology {
+  id       String @id @default(cuid())
+  name     String @unique
+  /// e.g. "Frontend", "Backend", "Mobile", "Cloud & DevOps", "Databases", "AI & Automation" — mirrors src/data/technologies-content.ts categories.
+  category String
+
+  services       Service[]       @relation("ServiceTechnologies")
+  portfolioItems PortfolioItem[] @relation("PortfolioTechnologies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("technologies")
+}
+
+model Category {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  posts BlogPost[]
+
+  @@map("categories")
+}
+
+// ============================================================================
+// SERVICES
+// ============================================================================
+
+model Service {
+  id               String @id @default(cuid())
+  slug             String @unique
+  name             String
+  shortDescription String
+  problem          String @db.Text
+  solutionOverview String @db.Text
+  /// Bulleted lists — see src/types ServiceDetail.included/.benefits for the frontend shape this mirrors.
+  included         String[]
+  benefits         String[]
+  /// [{ title, description }] — "Our Approach" steps.
+  approach         Json
+  /// [{ question, answer }]
+  faqs             Json
+
+  technologies Technology[]    @relation("ServiceTechnologies")
+  industries   Industry[]      @relation("ServiceIndustries")
+  portfolioItems PortfolioItem[] @relation("PortfolioServices")
+  blogPosts    BlogPost[]      @relation("ServiceBlogPosts")
+  /// Opposite side of QuoteRequestService.service below — a Service
+  /// relates to QuoteRequest only through that explicit join model,
+  /// never directly, so this must be typed QuoteRequestService[] (not
+  /// QuoteRequest[]) to correctly complete the "QuoteServices" relation.
+  quoteRequestServices QuoteRequestService[] @relation("QuoteServices")
+
+  relatedTo   Service[] @relation("RelatedServices")
+  relatedFrom Service[] @relation("RelatedServices")
+
+  seoMetadata SeoMetadata?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("services")
+}
+
+// ============================================================================
+// INDUSTRIES
+// ============================================================================
+
+model Industry {
+  id                 String @id @default(cuid())
+  slug               String @unique
+  name               String
+  relevanceStatement String
+  /// [{ title, description }]
+  challenges         Json
+
+  services       Service[]       @relation("ServiceIndustries")
+  portfolioItems PortfolioItem[] @relation("PortfolioIndustries")
+
+  seoMetadata SeoMetadata?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("industries")
+}
+
+// ============================================================================
+// PORTFOLIO
+// ============================================================================
+
+model PortfolioItem {
+  id         String  @id @default(cuid())
+  slug       String  @unique
+  title      String
+  thumbnail  String
+  resultStat String?
+  challenge  String  @db.Text
+  solution   String  @db.Text
+  result     String  @db.Text
+
+  /// Testimonial fields are nullable individually rather than a nested
+  /// Json blob — keeps them queryable/filterable (e.g. "items with a
+  /// testimonial") without JSON path queries, and null-by-default
+  /// matches the "omit until real, attributed quote exists" rule
+  /// already established on the frontend (src/data/portfolio-content.ts).
+  testimonialQuote   String?
+  testimonialAuthor  String?
+  testimonialRole    String?
+  testimonialCompany String?
+
+  services     Service[]    @relation("PortfolioServices")
+  industries   Industry[]   @relation("PortfolioIndustries")
+  technologies Technology[] @relation("PortfolioTechnologies")
+
+  seoMetadata SeoMetadata?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("portfolio_items")
+}
+
+// ============================================================================
+// BLOG
+// ============================================================================
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogPost {
+  id                  String     @id @default(cuid())
+  slug                String     @unique
+  title               String
+  status              PostStatus @default(DRAFT)
+  excerpt             String
+  /// Paragraph-per-array-entry, matching the frontend BlogPost.content shape (src/types/index.ts) — avoids storing/rendering raw HTML.
+  content             String[]
+  heroImage           String
+  publishedAt         DateTime?
+  readingTimeMinutes  Int        @default(5)
+
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+
+  author   User   @relation("AuthoredPosts", fields: [authorId], references: [id])
+  authorId String
+
+  relatedServices Service[] @relation("ServiceBlogPosts")
+
+  seoMetadata SeoMetadata?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("blog_posts")
+}
+
+// ============================================================================
+// TEAM
+// ============================================================================
+
+model TeamMember {
+  id           String  @id @default(cuid())
+  name         String
+  role         String
+  photo        String
+  shortBio     String
+  extendedBio  String? @db.Text
+  linkedIn     String?
+  /// Display order on the About page — Admin Team Manager reorders via up/down controls, not free-drag, per the accessibility decision in Phase 3G.
+  order        Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("team_members")
+}
+
+// ============================================================================
+// CAREERS
+// ============================================================================
+
+enum PositionType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+model CareerPosition {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  type        PositionType
+  location    String
+  description String         @db.Text
+  status      PositionStatus @default(OPEN)
+
+  applications CareerApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("career_positions")
+}
+
+enum ApplicationStatus {
+  NEW
+  REVIEWED
+}
+
+model CareerApplication {
+  id              String            @id @default(cuid())
+  fullName        String
+  email           String
+  areaOfExpertise String
+  message         String?           @db.Text
+  resumeUrl       String?
+  status          ApplicationStatus @default(NEW)
+
+  position   CareerPosition? @relation(fields: [positionId], references: [id])
+  positionId String?
+
+  submittedAt DateTime @default(now())
+
+  @@map("career_applications")
+}
+
+// ============================================================================
+// CONTACT & QUOTE SUBMISSIONS
+// ============================================================================
+
+enum ContactChannel {
+  CONTACT_FORM
+  LIVE_CHAT
+}
+
+enum ContactStatus {
+  NEW
+  REPLIED
+  ARCHIVED
+}
+
+model ContactMessage {
+  id      String         @id @default(cuid())
+  fullName String
+  email   String
+  message String         @db.Text
+  channel ContactChannel @default(CONTACT_FORM)
+  status  ContactStatus  @default(NEW)
+
+  submittedAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
+
+enum PreferredContactMethod {
+  EMAIL
+  PHONE
+  WHATSAPP
+}
+
+enum QuoteStatus {
+  NEW
+  CONTACTED
+  PROPOSAL_SENT
+  WON
+  LOST
+}
+
+model QuoteRequest {
+  id                    String                  @id @default(cuid())
+  fullName              String
+  company               String?
+  email                 String
+  phone                 String?
+  projectDescription    String                  @db.Text
+  timelineExpectation   String?
+  budgetRange           String?
+  preferredContactMethod PreferredContactMethod @default(EMAIL)
+  timeZone              String
+  status                QuoteStatus             @default(NEW)
+
+  services QuoteRequestService[]
+
+  submittedAt DateTime @default(now())
+
+  @@map("quote_requests")
+}
+
+/// Explicit join model (rather than an implicit m-n) so each request's
+/// service selection is queryable/reportable on its own — e.g. "how
+/// many quote requests mentioned Custom Software Development this
+/// quarter" — without joining through the full QuoteRequest table scan.
+model QuoteRequestService {
+  quoteRequest   QuoteRequest @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  quoteRequestId String
+  service        Service      @relation("QuoteServices", fields: [serviceId], references: [id])
+  serviceId      String
+
+  @@id([quoteRequestId, serviceId])
+  @@map("quote_request_services")
+}
+
+// ============================================================================
+// SEO
+// ============================================================================
+
+/// One row per content entity OR one row per static path (via `path`
+/// alone, with all entity FKs null) — covers both the fixed public
+/// pages (Homepage, About, Contact, etc.) and CMS-managed content
+/// (Service/Industry/Portfolio/BlogPost detail pages), matching the
+/// unified inventory already built in src/data/admin-seo-pages.ts.
+model SeoMetadata {
+  id              String  @id @default(cuid())
+  path            String  @unique
+  metaTitle       String
+  metaDescription String
+  ogImage         String?
+
+  service   Service?       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId String?        @unique
+  industry  Industry?      @relation(fields: [industryId], references: [id], onDelete: Cascade)
+  industryId String?       @unique
+  portfolioItem   PortfolioItem? @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  portfolioItemId String?       @unique
+  blogPost   BlogPost?     @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  blogPostId String?       @unique
+
+  updatedAt DateTime @updatedAt
+
+  @@map("seo_metadata")
+}
+
+// ============================================================================
+// SITE SETTINGS, NAVIGATION & FOOTER
+// ============================================================================
+
+/// Single-row settings table (id is always "singleton") — mirrors the
+/// Admin Site Settings tabs (General/Business Hours/Social/Integrations/Privacy).
+model SiteSettings {
+  id                   String  @id @default("singleton")
+  siteName             String
+  domain               String
+  contactEmail         String
+  contactPhone         String
+  whatsappNumber       String
+  /// [{ region, hours, responseTime }]
+  businessHours        Json
+  /// { linkedIn?, facebook?, twitter?, instagram? }
+  socialLinks          Json
+  liveChatEnabled      Boolean @default(true)
+  analyticsEnabled     Boolean @default(false)
+  analyticsId          String?
+  cookieBannerEnabled  Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model NavigationItem {
+  id     String  @id @default(cuid())
+  label  String
+  href   String
+  order  Int     @default(0)
+
+  parent   NavigationItem?  @relation("NavChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId String?
+  children NavigationItem[] @relation("NavChildren")
+
+  @@map("navigation_items")
+}
+
+model FooterLink {
+  id    String @id @default(cuid())
+  /// "company" | "resources" | "legal" — matches src/config/site.ts footerNav groups.
+  group String
+  label String
+  href  String
+  order Int    @default(0)
+
+  @@map("footer_links")
+}
+
+// ============================================================================
+// MEDIA LIBRARY (Cloudinary-backed)
+// ============================================================================
+
+model MediaAsset {
+  id                 String  @id @default(cuid())
+  filename           String
+  url                String
+  cloudinaryPublicId String  @unique
+  altText            String?
+  /// Free-text description of where this asset is used, shown in the Media Library grid — kept denormalized for simple display rather than a generic polymorphic relation.
+  usedIn             String?
+
+  uploadedBy   User?   @relation("UploadedBy", fields: [uploadedById], references: [id])
+  uploadedById String?
+
+  createdAt DateTime @default(now())
+
+  @@map("media_assets")
+}
