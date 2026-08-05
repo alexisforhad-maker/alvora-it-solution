@@ -39,7 +39,7 @@ export function BlogPreviewSection() {
               title={post.title}
               href={`/blog/${post.slug}`}
               heroImage={post.heroImage}
-              categoryLabel={categoryLabels[post.category]}
+              categoryLabel={categoryLabels[post.category] ?? post.category}
               publishedAt={post.publishedAt}
               readingTimeMinutes={post.readingTimeMinutes}
               authorName={author?.name ?? "Alvora Team"}
